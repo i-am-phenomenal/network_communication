@@ -1,4 +1,5 @@
 from .exceptions import CustomException
+from django.http import HttpResponse
 
 class Decorators():
 
@@ -15,7 +16,7 @@ class Decorators():
             if contentType == "text/plain":
                 return function(*args, **kwargs)
             else: 
-                raise CustomException("Content Type is Invalid ")
+                return HttpResponse("Error", status=500)
         return innerFunction
         
     def validateCommandContentType(self, function): 
@@ -26,7 +27,7 @@ class Decorators():
             if commandContentType == "application/json": 
                 return function(*args, **kwargs)
             else: 
-                raise CustomException("Content Type is Invalid ")
+                return HttpResponse("Error", status=500)
         return innerFunction
             
 
@@ -36,5 +37,5 @@ class Decorators():
             if operationType in self.possibleOperationTypes:
                 return function(*args, *kwargs)
             else: 
-                raise CustomException("Operation Type is invalid")
+                return HttpResponse("Error", status=500)
         return innerFunction
