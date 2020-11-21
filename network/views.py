@@ -5,7 +5,6 @@ from .decorators import Decorators
 import json 
 from .models import Device
 from django.db import IntegrityError
-from django.forms.models import model_to_dict
 
 def searchForDevice(connected, destinationNodeName, currentPath):
         if connected == []:
@@ -74,15 +73,23 @@ class Process(View):
             cleaned[device.deviceName] = allConnected
         return cleaned
 
+    def getDeviceType(self, deviceName): 
+        deviceObject = Device.objects.get(deviceName=deviceName)
+        return deviceObject.deviceType
+
     def findPath(self, graph, start, end, path=[]):
         path = path + [start]
+
         if start == end: 
-            return path
+            return path 
+
         if not start in graph:
             return None
-        for node in graph[start]:
-            if node not in path: 
-                newPath = self.findPath(graph, node, end, path)
+
+        for deviceName in graph[start]:
+            deviceType = self.getDeviceType(deviceName)
+            if deviceName not in path: 
+                newPath = self.findPath(graph, deviceName, end, path)
                 if newPath:
                     return newPath
         return None
@@ -94,21 +101,22 @@ class Process(View):
         commandText = commandText[0].split(" /")[1].split("?")[1]
         sourceNode = commandText.split("&")[0].split("=")[1]
         destinationNode = commandText.split("&")[1].split("=")[1]
+        if sourceNode == destinationNode: 
+            return {
+                "message": {"msg": "Route is {sourceNode}->{sourceNode}".format(sourceNode=sourceNode)},
+                "status": 200
+            }
         source = self.getDeviceObjectByDeviceName(sourceNode)
         graph = self.getGraphRepresentation()
         path = self.findPath(graph, sourceNode, destinationNode)
         if path is None:
             return {
-                    "message": json.dumps(
-                        {"msg": "Route not found"}
-                    ),
+                    "message":   "Route not found",
                     "status" : 404
             }
         else:
             return {
-                "message": json.dumps(
-                    {"msg": "Route is {route}".format(route="->".join(path))}
-                ),
+                "message": {"msg": "Route is {route}".format(route="->".join(path))},
                 "status" : 200
             }
 
@@ -119,7 +127,6 @@ class Process(View):
         elif "info-routes" in command: 
             return self.getInfoRouteBetweenNodes(commandText)
             
-
     def getDeviceObjectByDeviceName(self, sourceNode):
         deviceObject = Device.objects.get(
             deviceName =sourceNode.strip()
@@ -162,7 +169,7 @@ class Process(View):
                     )
                 except IntegrityError:
                     return self.returnResponseDict(
-                       "Device {deviceName} already exists".format(deviceName =commandBody["name"]),
+                       "Device '{deviceName}' already exists".format(deviceName =commandBody["name"]),
                         400
                     )
             else: 
@@ -176,12 +183,31 @@ class Process(View):
                 400
             )
 
+    @decorators.validateValueType
+    @decorators.checkIfDeviceIsPresent
+    def modifyDeviceStrength(self, deviceName, value):
+        deviceObject = Device.objects.get(
+            deviceName=deviceName
+        )
+        deviceObject.deviceStrength = value["value"]
+        deviceObject.save()
+        return {
+            "message" : "Successfully defined strength",
+            "status": 200
+        }
+
     def performCreateCommand(self, command, commandText):
         if command == "devices": 
             return self.createDevice(commandText)
             
         elif command == "connections": 
             return self.connectDevicesInTheNetwork(commandText)
+
+    def performModifyCommand(self, command, commandText):
+        if "/strength" in command: 
+            deviceName = command.split("/")[1]
+            value = json.loads(commandText[2])
+            return self.modifyDeviceStrength(deviceName, value)
 
     @decorators.validateRequestContentType
     @decorators.validateCommandContentType
@@ -211,6 +237,17 @@ class Process(View):
                     json.dumps(response["message"]),
                     status=response["status"]
                 )
+        
+        elif commandType == "MODIFY":
+            response = self.performModifyCommand(command, commandText)
+            return HttpResponse(
+                json.dumps(
+                    {
+                        "msg": response["message"]
+                    }
+                ),
+                status = response["status"]
+            )
 
     #Made for my own purposes
     def get(self, request):
@@ -223,7 +260,6 @@ class Process(View):
                 "connected": allConnected
             }
             formatted.append(cleaned)
-        print(formatted)
         return HttpResponse(
             json.dumps(formatted),
             status=200

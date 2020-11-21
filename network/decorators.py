@@ -186,3 +186,28 @@ class Decorators():
             else: 
                 return function(*args, **kwargs)
         return innerFunction
+
+
+    def validateValueType(self, function):
+        def innerFunction(*args, **kwargs):
+            value = args[2]
+            if type(value["value"]) == int:
+                return function(*args, **kwargs)
+            else: 
+                return {
+                    "message": "value should be an integer",
+                    "status" : 400
+                }
+        return innerFunction
+
+    def checkIfDeviceIsPresent(self, function):
+        def innerFunction(*args, **kwargs):
+            deviceName =args[1]
+            if Device.objects.filter(deviceName=deviceName).exists():
+                return function(*args, **kwargs)
+            else: 
+                return {
+                    "message": "Device Not Found",
+                    "status": 400
+                }
+        return innerFunction

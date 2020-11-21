@@ -5,4 +5,5 @@ class Device(models.Model):
     deviceName =models.CharField(max_length=10, unique=True)
     deviceType= models.CharField(max_length=20)
     connectedDevices = models.ManyToManyField("self", blank=True, symmetrical=False)
+    deviceStrength = models.PositiveIntegerField(default=5)
 
