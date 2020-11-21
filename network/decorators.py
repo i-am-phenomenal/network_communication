@@ -137,3 +137,52 @@ class Decorators():
                     pass
             return function(*args, **kwargs)
         return innerFunction
+
+    def checkIfFromAndToPresent(self, function): 
+        def innerFunction(*args, **kwargs): 
+            params = args[1][0].split(" /")[1]
+            if "from" in params and "to" in params:
+                return function(*args, **kwargs)
+            else: 
+                return {
+                    "message": "Invalid Request",
+                    "status" : 400
+                }
+        return innerFunction
+
+    def checkIfAllNodesPresentInDatabase(self, function):
+        def innerFunction(*args, **kwargs):
+            params = args[1][0].split(" /")[1]
+            params = params.split("?")[1].split("&")
+            sourceNode = params[0].split("=")[1]
+            destinationNode = params[1].split("=")[1]
+            if Device.objects.filter(deviceName=sourceNode).exists():
+                if Device.objects.filter(deviceName=destinationNode).exists():
+                    return function(*args, **kwargs)
+                else: 
+                    return {
+                        "message": "Node {nodeName} not found".format(nodeName=destinationNode),
+                        "status" : 400
+                    }    
+            else:
+                return {
+                    "message": "Node {nodeName} not found".format(nodeName=sourceNode),
+                    "status" : 400
+                }
+        return innerFunction
+
+    def checkIfAnyNodeIsRepeater(self, function): 
+        def innerFunction(*args, **kwargs):
+            params = args[1][0].split(" /")[1]
+            params = params.split("?")[1].split("&")
+            sourceNode = params[0].split("=")[1]
+            destinationNode = params[1].split("=")[1]
+            deviceTypes = list(Device.objects.filter(deviceName__in=[sourceNode, destinationNode]).values_list("deviceType", flat=True))
+            if "REPEATER" in deviceTypes:
+                return {
+                    "message": "Route cannot be calculated with repeater",
+                    "status" : 400
+                }
+            else: 
+                return function(*args, **kwargs)
+        return innerFunction

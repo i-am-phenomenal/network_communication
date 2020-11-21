@@ -36,7 +36,10 @@ class Process(View):
             for device in allDevices
         ]
         return {
-            "devices": formattedDevices
+            "message": {
+                "devices": formattedDevices
+            },
+            "status": 200
         }
 
     def returnResponseDict(self, message, statusCode):
@@ -45,9 +48,23 @@ class Process(View):
         responseDict["status"] = statusCode
         return responseDict
 
+    @decorators.checkIfFromAndToPresent
+    @decorators.checkIfAllNodesPresentInDatabase
+    @decorators.checkIfAnyNodeIsRepeater
+    def getInfoRouteBetweenNodes(self, commandText):
+        commandText = commandText[0].split(" /")[1].split("?")[1]
+        sourceNode = commandText.split("&")[0].split("=")[1]
+        destinationNode = commandText.split("&")[1].split("=")[1]
+        source = self.getDeviceObjectByDeviceName(sourceNode)
+        allSourceDevices = source.connectedDevices.all()
+        print(allSourceDevices, "222222222")
+
     def performFetchCommand(self, command, commandText):
         if command == "devices": 
             return self.getAllDevicesInTheNetwork()
+
+        elif "info-routes" in command: 
+            return self.getInfoRouteBetweenNodes(commandText)
 
     def getDeviceObjectByDeviceName(self, sourceNode):
         deviceObject = Device.objects.get(
@@ -108,6 +125,7 @@ class Process(View):
     def performCreateCommand(self, command, commandText):
         if command == "devices": 
             return self.createDevice(commandText)
+            
         elif command == "connections": 
             return self.connectDevicesInTheNetwork(commandText)
 
@@ -126,11 +144,17 @@ class Process(View):
                 status=responseDict["status"]
             )
         elif commandType == "FETCH": 
-            formattedRecords = self.performFetchCommand(command, commandText)
-            return HttpResponse(
-                json.dumps(formattedRecords),
-                status=200
-            )
-        
-        return HttpResponse("Ok")
+            response = self.performFetchCommand(command, commandText)
+            if response["status"] == 400:
+                return HttpResponse(
+                    json.dumps(
+                        {"msg": response["message"]}
+                    ),
+                    status=400
+                )
+            else:
+                return HttpResponse(
+                    json.dumps(response["message"]),
+                    status=response["status"]
+                )
 
